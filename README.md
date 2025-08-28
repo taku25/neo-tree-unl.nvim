@@ -4,8 +4,7 @@
 
 <table>
   <tr>
-   <td><div align=center><img width="100%" alt="UEP Project Tree Demo" src="" /></div></td>
-   <td><div align=center><img width="100%" alt="UEP Module Tree Demo" src="" /></div></td>
+   <td><div align=center><img width="100%" alt="neo-tree-unl" src="https://raw.githubusercontent.com/taku25/neo-tree-unl.nvim/images/assets/main-image.png" /></div></td>
   </tr>
 </table>
 
