@@ -74,7 +74,7 @@ return {
       sources = {
         "filesystem",
         -- ★★★ Enable this source ★★★
-        "neo-tree-unl.uproject",
+        "neo-tree.sources.uproject",
       },
       source_selector = {
         winbar = true,

@@ -75,7 +75,7 @@ return {
       sources = {
         "filesystem",
         -- ★★★ このソースを有効化 ★★★
-        "neo-tree-unl.uproject",
+        "neo-tree.sources.uproject",
       },
       source_selector = {
         winbar = true,
