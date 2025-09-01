@@ -50,9 +50,20 @@ M.setup = function(config, global_config)
   
   -- イベント購読
   unl_events.subscribe(unl_event_types.ON_UPROJECT_TREE_UPDATE, function(nodes_from_event)
-    -- ★★★ ここで受け取ったデータを正規化する ★★★
+    -- ★★★ ここからが修正箇所 ★★★
+    
+    -- 1. 正規化されたデータを current_nodes に保存
     current_nodes = normalize_nodes_for_neo_tree(nodes_from_event, nil)
-    manager.refresh(M.name)
+    
+    -- 2. 現在アクティブなタブページの uproject ソースの state を取得する
+    local current_tab = vim.api.nvim_get_current_tabpage()
+    local state = manager.get_state(M.name, current_tab)
+
+    -- 3. その state を使って、navigate を直接呼び出す
+    --    これにより、即座にUIが更新される
+    if state and state.winid and vim.api.nvim_win_is_valid(state.winid) then
+        M.navigate(state)
+    end
   end)
 
   -- ON_PLUGIN_AFTER_SETUP は、一度だけ発行すれば良い
