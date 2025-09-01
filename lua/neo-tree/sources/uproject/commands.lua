@@ -23,8 +23,6 @@ end
 local function toggle_directory(state, node)
   if not node then return end
 
-  print("ASGA")
-  
   state.explicitly_opened_nodes = state.explicitly_opened_nodes or {}
   
   -- 1. まだ読み込んでいないノードの場合 (遅延読み込み)
@@ -78,7 +76,7 @@ M.refresh = function(state)
 end
 ---
 -- 'a' キーに割り当てられたカスタムコマンド
-M.publish_node_info = function(state)
+M.add = function(state)
   local log = require("neo-tree.log")
   local node = state.tree:get_node()
   if not node then
@@ -104,14 +102,93 @@ M.publish_node_info = function(state)
   
   local ucm_ok, ucm_api  = pcall(require, "UCM.api")
   if ucm_ok then
-    log.info("Calling UCM.api.new_class with target_dir: " .. target_dir)
     ucm_api.new_class({ target_dir = target_dir })
   else
     log.warn("UCM.api module could not be loaded.")
   end
 end
 
----
+-- 'd' キーに割り当てられたカスタム削除コマンド
+-- 選択されたノードのタイプに応じて振る舞いを変更する
+M.delete = function(state)
+  local log = require("neo-tree.log")
+  local node = state.tree:get_node()
+
+  if not node then
+    log.info("uproject: No node selected to delete.")
+    return
+  end
+  
+  -- 1. 選択されたノードが「ファイル」の場合
+  if node.type == "file" then
+    log.debug("Node is a file, dispatching to UCM.api.delete_class")
+    local ucm_ok, ucm_api = pcall(require, "UCM.api")
+    if ucm_ok then
+      -- UCM APIは .h と .cpp をペアで賢く削除してくれる
+      ucm_api.delete_class({ file_path = node.id })
+    else
+      log.warn("UCM.api module could not be loaded.")
+    end
+
+  -- 2. 選択されたノードが「ディレクトリ」の場合
+  elseif node.type == "directory" then
+    log.debug("Node is a directory, dispatching to common neo-tree delete command")
+    -- neo-treeの標準の削除コマンドを呼び出す
+    cc.delete(state)
+
+  -- 3. その他の場合 (メッセージノードなど)
+  else
+    log.debug("Delete command ignored for node type: " .. node.type)
+    -- 何もしない
+  end
+end
+
+M.rename = function(state)
+  local log = require("neo-tree.log")
+  local node = state.tree:get_node()
+  if not node then return end
+
+  if node.type == "file" then
+    log.debug("Node is a file, dispatching to UCM.api.rename_class")
+    local ucm_ok, ucm_api = pcall(require, "UCM.api")
+    if not ucm_ok then
+      return log.warn("UCM.api module could not be loaded.")
+    end
+    
+    local old_name = vim.fn.fnamemodify(node.id, ":t:r")
+    vim.ui.input({ prompt = "Enter New Class Name:", default = old_name }, function(new_name)
+      if not new_name or new_name == "" or new_name == old_name then
+        return log.info("Rename canceled.")
+      end
+      ucm_api.rename_class({ file_path = node.id, new_class_name = new_name })
+    end)
+
+  elseif node.type == "directory" then
+    log.debug("Node is a directory, dispatching to common neo-tree rename command")
+    cc.rename(state)
+  end
+end
+
+M.move = function(state)
+  local log = require("neo-tree.log")
+  local node = state.tree:get_node()
+  if not node then return end
+
+  if node.type == "file" then
+    log.debug("Node is a file, dispatching to UCM.api.move_class")
+    local ucm_ok, ucm_api = pcall(require, "UCM.api")
+    if not ucm_ok then return log.warn("UCM.api module could not be loaded.") end
+
+    -- UCMの対話的UIを再利用する
+    ucm_api.move_class({ file_path = node.id })
+
+  elseif node.type == "directory" then
+    log.debug("Node is a directory, using standard neo-tree move (cut/paste)")
+    -- 標準の'cut'コマンドを呼び出す
+    cc.cut(state)
+    vim.notify("Directory cut. Navigate to destination and press 'p' to paste.", vim.log.levels.INFO)
+  end
+end
 -- neo-tree の標準コマンドをカスタムロジックでオーバーライド
 M.toggle_node = function(state)
   toggle_directory(state, state.tree:get_node())
@@ -124,8 +201,5 @@ end
 -- 共通コマンドを継承
 cc._add_common_commands(M)
 
--- 'add' (ファイル作成) コマンドを無効化する
--- M.add = nil 
--- M.add_directory = nil
 return M
 

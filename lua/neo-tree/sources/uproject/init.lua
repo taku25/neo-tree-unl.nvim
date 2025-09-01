@@ -26,6 +26,30 @@ local function normalize_nodes_for_neo_tree(nodes, parent_path)
   return normalized
 end
 
+--- ★★★ 新規追加: commands.lua から呼ばれる関数 ★★★
+-- current_nodes の中から、指定されたIDのノードを再帰的に探す
+-- @param node_id string 探すノードのID
+-- @return table|nil 見つかったノードのデータ、またはnil
+function M.get_full_node_data(node_id)
+  if not current_nodes then return nil end
+
+  local function find_recursive(nodes_to_search)
+    for _, node in ipairs(nodes_to_search) do
+      if node.id == node_id then
+        return node
+      end
+      if node.children and #node.children > 0 then
+        local found = find_recursive(node.children)
+        if found then return found end
+      end
+    end
+    return nil
+  end
+
+  -- current_nodes はトップレベルのノードのリストなので、そこから探し始める
+  return find_recursive(current_nodes)
+end
+
 -- navigate は必須
 M.navigate = function(state, path)
   local renderer = require("neo-tree.ui.renderer")
@@ -48,9 +72,7 @@ M.setup = function(config, global_config)
   local unl_event_types = require("UNL.event.types")
   local manager = require("neo-tree.sources.manager")
   
-  -- イベント購読
   unl_events.subscribe(unl_event_types.ON_UPROJECT_TREE_UPDATE, function(nodes_from_event)
-    -- ★★★ ここからが修正箇所 ★★★
     
     -- 1. 正規化されたデータを current_nodes に保存
     current_nodes = normalize_nodes_for_neo_tree(nodes_from_event, nil)
