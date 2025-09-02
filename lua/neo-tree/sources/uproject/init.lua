@@ -3,19 +3,19 @@ local M = {}
 M.name = "uproject"
 M.display_name = "UProject Explorer"
 
--- このソースの状態を管理するモジュールをrequire
 local state_manager = require("neo-tree.sources.uproject.state")
-local manager = require("neo-tree.sources.manager")
+
+local last_active_state_id = nil
+local active_listeners = {}
 
 -------------------------------------------------
--- ツリーモデル構築ヘルパー
--- (UEPから移動し、このファイル内で完結)
+-- ツリーモデル構築ヘルパー関数
 -------------------------------------------------
 local function build_fs_tree_from_flat_list(file_list, root_path)
   local root = {}
   for _, file_path in ipairs(file_list) do
     local current_level = root
-    local relative_path = file_path:sub(#root_path + 2) -- +2 for trailing slash
+    local relative_path = file_path:sub(#root_path + 2)
     local parts = vim.split(relative_path, "[/]")
     for i, part in ipairs(parts) do
       if not current_level[part] then current_level[part] = {} end
@@ -59,8 +59,8 @@ local function build_hierarchy_nodes(modules_meta, files_by_module)
       if meta.location == "in_plugins" then
         local plugin_name = meta.module_root:match("[/\\]Plugins[/\\]([^/\\]+)")
         if plugin_name then
+          local plugin_path = meta.module_root:match("(.+[/\\]Plugins[/\\][^/\\]+)")
           if not plugin_nodes[plugin_name] then
-            local plugin_path = meta.module_root:match("(.+[/\\]Plugins[/\\][^/\\]+)")
             plugin_nodes[plugin_name] = { id = plugin_path, name = plugin_name, path = plugin_path, type = "directory", extra = { uep_type = "plugin" }, children = {} }
           end
           table.insert(plugin_nodes[plugin_name].children, node)
@@ -68,7 +68,7 @@ local function build_hierarchy_nodes(modules_meta, files_by_module)
           table.insert(root_nodes.Plugins.children, node)
         end
       elseif meta.location == "in_source" then
-        local category_key = meta.category or "Game" -- category should exist
+        local category_key = meta.category or "Game"
         if root_nodes[category_key] then
           table.insert(root_nodes[category_key].children, node)
         end
@@ -89,108 +89,104 @@ local function build_hierarchy_nodes(modules_meta, files_by_module)
 end
 
 -------------------------------------------------
--- navigate: ソースが表示されるたびに呼ばれる
+-- navigate: メインの処理関数
 -------------------------------------------------
 M.navigate = function(state, path)
   local renderer = require("neo-tree.ui.renderer")
-  
-  -- 1. 表示リクエストのコンテキストを取得
-  local request = state_manager.get_last_request()
-  
-  -- 2. リクエストがなければ、CWDからデフォルトコンテキストを作成
-  if not request then
-    local ok_finder, unl_finder = pcall(require, "UNL.finder")
-    if not ok_finder then return renderer.show_nodes({{ name = "Error: UNL.nvim not available." }}, state) end
-    
-    local project_root = unl_finder.project.find_project_root(vim.loop.cwd())
-    if not project_root then
-      return renderer.show_nodes({{ name = "Not in an Unreal Engine project." }}, state)
+  local unl_events = require("UNL.event.events")
+  local unl_event_types = require("UNL.event.types")
+
+  if state.id ~= last_active_state_id then
+    for _, listener_id in ipairs(active_listeners) do
+      unl_events.unsubscribe(listener_id)
     end
+    active_listeners = {}
+    last_active_state_id = state.id
+    
+    local function force_refresh_this_state()
+      if state and state.winid and vim.api.nvim_win_is_valid(state.winid) then
+        M.navigate(state, nil)
+      end
+    end
+
+    local sub_id_1 = unl_events.subscribe(unl_event_types.ON_REQUEST_UPROJECT_TREE_VIEW, function(payload)
+      state_manager.set_last_request(payload)
+      force_refresh_this_state()
+    end)
+    table.insert(active_listeners, sub_id_1)
+    
+    --- ★★★ ここからが修正箇所 ★★★
+    local sub_id_2 = unl_events.subscribe(unl_event_types.ON_AFTER_FILE_CACHE_SAVE, force_refresh_this_state)
+    table.insert(active_listeners, sub_id_2)
+    
+    local sub_id_3 = unl_events.subscribe(unl_event_types.ON_AFTER_PROJECT_CACHE_SAVE, force_refresh_this_state)
+    table.insert(active_listeners, sub_id_3)
+
+    local sub_id_4 = unl_events.subscribe(unl_event_types.ON_AFTER_CHANGE_DIRECTORY, function(ev)
+      if ev.status == "success" then
+        state_manager.set_last_request(nil)
+        force_refresh_this_state()
+      end
+    end)
+    table.insert(active_listeners, sub_id_4)
+    --- ★★★ 修正箇所ここまで ★★★
+  end
+
+  local request = state_manager.get_last_request()
+  if not request then
+    local unl_finder = require("UNL.finder")
+    local project_root = unl_finder.project.find_project_root(vim.loop.cwd())
+    if not project_root then return renderer.show_nodes({{ name = "Not in an Unreal Engine project." }}, state) end
     local proj_info = unl_finder.project.find_project(project_root)
     local engine_root = proj_info and unl_finder.engine.find_engine_root(proj_info.uproject, {})
     
     request = { project_root = project_root, engine_root = engine_root, all_depth = false, target_module = nil }
-    state_manager.set_last_request(request) -- 次回のために保存
+    state_manager.set_last_request(request)
   end
 
-  -- 3. UEPのキャッシュをロード
   local uep_project_cache = require("UEP.cache.project")
   local uep_files_cache = require("UEP.cache.files")
 
   local game_data = uep_project_cache.load(request.project_root)
-  if not game_data then
-    return renderer.show_nodes({{ name = "Project data not found. Run ':UEP refresh'." }}, state)
-  end
-  local engine_data = request.engine_root and uep_project_cache.load(request.engine_root)
+  if not game_data then return renderer.show_nodes({{ name = "Project data not found. Run ':UEP refresh'." }}, state) end
 
+  local engine_data = request.engine_root and uep_project_cache.load(request.engine_root)
   local game_files = uep_files_cache.load(request.project_root) or { files_by_module = {} }
   local engine_files = engine_data and uep_files_cache.load(engine_data.root) or { files_by_module = {} }
 
-  -- 4. 全モジュールと全ファイルリストを準備
   local all_modules = vim.tbl_deep_extend("force", engine_data and engine_data.modules or {}, game_data.modules or {})
   local all_files = vim.tbl_deep_extend("force", engine_files.files_by_module, game_files.files_by_module)
-  
-  -- 5. モジュールを依存関係でフィルタリング (必要な場合)
+
   local deps_key = request.all_depth and "deep_dependencies" or "shallow_dependencies"
-  local visible_modules = {}
+  local visible_modules
   if request.target_module and all_modules[request.target_module] then
-    -- 単一モジュール表示の場合
+    visible_modules = {}
     visible_modules[request.target_module] = all_modules[request.target_module]
     for _, dep_name in ipairs(all_modules[request.target_module][deps_key] or {}) do
       if all_modules[dep_name] then visible_modules[dep_name] = all_modules[dep_name] end
     end
   else
-    -- 全モジュール表示の場合
     visible_modules = all_modules
   end
-  
-  -- 6. ツリーモデルを構築
+
   local hierarchy = build_hierarchy_nodes(visible_modules, all_files)
   local project_name = vim.fn.fnamemodify(game_data.uproject_path, ":t:r")
   
-  local tree_model_to_render = {{
+  local model_to_render = {{
     id = request.project_root, name = project_name, path = request.project_root, type = "directory",
     extra = { uep_type = "project_root" },
     children = hierarchy,
   }}
 
-  -- 7. 描画
-  renderer.show_nodes(tree_model_to_render, state)
+  renderer.show_nodes(model_to_render, state)
 end
 
 -------------------------------------------------
--- setup: イベントを購読する
+-- setup: グローバルな一度きりの初期化
 -------------------------------------------------
 M.setup = function(config, global_config)
   local unl_events = require("UNL.event.events")
   local unl_event_types = require("UNL.event.types")
-
-  local function request_ui_refresh()
-    local state = manager.get_state(M.name, vim.api.nvim_get_current_tabpage())
-    if state and state.winid and vim.api.nvim_win_is_valid(state.winid) then
-      manager.refresh_source(M.name)
-    end
-  end
-  
-  -- UEPからのツリー表示リクエストを購読
-  unl_events.subscribe(unl_event_types.ON_REQUEST_UPROJECT_TREE_VIEW, function(payload)
-    state_manager.set_last_request(payload)
-    request_ui_refresh()
-  end)
-  
-  -- キャッシュ更新イベントを購読
-  unl_events.subscribe(unl_event_types.ON_AFTER_FILE_CACHE_SAVE, request_ui_refresh)
-  unl_events.subscribe(unl_event_types.ON_AFTER_PROJECT_CACHE_SAVE, request_ui_refresh)
-
-  unl_events.subscribe(unl_event_types.ON_AFTER_CHANGE_DIRECTORY, function(ev)
-    if ev.status == "success" then
-      -- 状態をリセットする
-      state_manager.set_last_request(nil)
-      -- もしneo-treeが開いていたら、UIも更新する
-      request_ui_refresh()
-    end
-  end)
-
   unl_events.publish(unl_event_types.ON_PLUGIN_AFTER_SETUP, { name = "neo-tree-unl" })
 end
 
