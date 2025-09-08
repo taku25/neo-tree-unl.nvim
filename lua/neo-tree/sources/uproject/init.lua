@@ -199,7 +199,7 @@ M.setup = function(config, global_config)
     end
   end)
 
-  unl_events.publish(unl_event_types.ON_PLUGIN_AFTER_SETUP, { name = "neo-tree-unl" })
+  unl_events.publish(unl_event_types.ON_PLUGIN_AFTER_SETUP, { name = "neo-tree-unl-uproject" })
 end
 
 return M
