@@ -26,15 +26,22 @@ function M.event_to_node(event)
     generate_uuid(),
     event.tid and tostring(event.tid) or "unknown"
   )
-  -- typeとextの両方を設定
-  local node_type = has_children and "directory" or "file"
-  local node_ext = has_children and "directory" or "function"
+  -- ★★★ ここからが修正箇所です ★★★
+  
+  local node_type, item_type
+  if has_children then
+    node_type = "directory"
+    item_type = "directory" 
+  else
+    node_type = "file"
+    item_type = "func"
+  end
   
   return {
     id = node_id,
     name = string.format("%s (%.3fms)", event.name or "Unknown", duration_ms),
-    type =  node_type,
-    ext = node_ext,
+    type = node_type,
+    item_type = item_type,
     has_children = has_children,
     loaded = not has_children,
     extra = { 

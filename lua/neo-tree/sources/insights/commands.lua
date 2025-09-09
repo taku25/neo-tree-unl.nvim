@@ -62,11 +62,15 @@ end
 M.open = function(state)
   local node = state.tree:get_node()
 
-  if (node.type == "function" or node.ext == "function") and 
-     node.extra and node.extra.ulg_event then
+  if node.type == "file" and node.extra and node.extra.ulg_event then
     local event = node.extra.ulg_event
     if event.file and event.line then
-      util.open_file(state, event.file)
+     local open_cmd = "edit"
+      if event.line and tonumber(event.line) > 0 then
+        open_cmd = open_cmd .. " +" .. tostring(event.line)
+      end
+      
+      util.open_file(state, event.file, open_cmd)
       return
     end
   end

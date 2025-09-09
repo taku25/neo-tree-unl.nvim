@@ -12,7 +12,7 @@ M.icon = function(config, node, state)
 
   -- typeとextの両方をチェック
   local node_type = node.type
-  local node_ext = node.ext
+  local node_ext = node.item_type
 
   if node_type == "directory" or node_ext == "directory" then
     icon.highlight = highlights.DIRECTORY_ICON
@@ -32,7 +32,7 @@ M.icon = function(config, node, state)
         icon.text = config.folder_closed or ""
       end
     end
-  elseif node_type == "function" or node_ext == "function" then
+  elseif node_type == "file" then
     icon.text = config.function_icon or "󰊕"  -- 関数用のアイコン
     icon.highlight = "Function" -- 関数用のハイライト
   end
@@ -60,26 +60,18 @@ M.name = function(config, node, state)
   }
 end
 
-M.bufnr = function(config, node, _)
-  return {}
-end
-M.diagnostics = function(config, node, state)
-  return {}
-end
-
-M.git_status = function(config, node, state)
-  return {}
+-- ★★★ ここからが修正の核心です ★★★
+-- 詳細表示で使われるが、私たちのソースには不要なコンポーネントを、
+-- 「何も表示しない」空のコンポーネントとして明示的に定義します。
+local empty_component = function()
+  return { text = "" }
 end
 
-M.modified = function(config, node, state)
-  return {}
-end
-
-M.last_modified = function(config, node, state)
-  return {
-    "",
-    highlight = config.highlight or highlights.FILE_STATS,
-  }
-end
+M.size = empty_component
+M.last_modified = empty_component
+M.git_status = empty_component
+M.diagnostics = empty_component
+M.modified = empty_component
+M.bufnr = empty_component
 
 return vim.tbl_deep_extend("force", common_components, M)

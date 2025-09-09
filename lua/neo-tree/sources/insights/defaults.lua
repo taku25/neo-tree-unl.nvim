@@ -1,28 +1,14 @@
-
-local config = {
-  renderers = {
-    directory = {
-      { "indent" },
-      { "icon" },
-      { "name" },
-    },
-    file = {
-      { "indent" },
-      { "icon" },
-      { "name" },
-    },
-    function = {  -- function用のレンダラーを追加
-      { "indent" },
-      { "icon" },
-      { "name" },
-    },
-    message = {
-      { "indent", with_markers = false },
-      { "name", highlight = "NeoTreeMessage" },
-    },
-  },
+return {
   function_icon = "󰊕",
+  logger = {
+    name = "NeoTreeUProject",
+    cache = { dirname = "URPOJECT_UNL" },
+    logging = { level = "info", file = { enable = true, filename = "neo-tree-uproject.log" } },
+  },
+  renderers = {
+    directory = { { "indent" }, { "icon" }, { "container", content = { { "name" } } } },
+    file = { { "indent" }, { "icon" }, { "name" } },
+    func = { { "indent" }, { "icon" }, { "name" } },
+    message = { { "indent", with_markers = false }, { "name", highlight = "NeoTreeMessage" } },
+  },
 }
-
-return config
-
