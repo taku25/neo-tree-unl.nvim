@@ -14,10 +14,9 @@ local tree_model = nil -- 成功した結果か、表示すべきメッセージ
 local is_fetching = false -- is_buildingから改名
 
 -- ★ データ取得のコアロジック
-local function fetch_data()
+local function fetch_data(state)
   if is_fetching then return end
   is_fetching = true
-   local state = manager.get_state(M.name)
   tree_model = {{ id = "_loading_", name = " Loading project data...", type = "message" }}
   renderer.show_nodes(tree_model, state)
 
@@ -73,7 +72,7 @@ M.navigate = function(state, path)
     renderer.show_nodes(tree_model, state)
   else
     -- 何もなければ（初回起動時）、データ取得を開始
-    fetch_data()
+    fetch_data(state)
   end
 end
 
@@ -92,27 +91,26 @@ M.setup = function(config, global_config)
 
   -- UEPが後からロードされた時
   unl_events.subscribe(unl_event_types.ON_PLUGIN_AFTER_SETUP, function(payload)
+    local state = manager.get_state(M.name)
     if payload and payload.name == "UEP" and tree_model and tree_model[1].id == "_error_" then
-      fetch_data()
+      fetch_data(state)
     end
   end)
 
   -- データが外部で更新された時
-  local function on_data_changed()
+  local function on_data_changed(payload)
+    state_manager.set_last_request(payload)
     -- tree_modelをnilにして、次回navigate時に再取得するようにする
     tree_model = nil
     -- もしツリーが表示中なら、リフレッシュをかける
-    local current_state = manager.get_state(M.name)
-    if current_state and current_state.winid and vim.api.nvim_win_is_valid(current_state.winid) then
-      fetch_data()
+    local state = manager.get_state(M.name)
+    if state and state.winid and vim.api.nvim_win_is_valid(state.winid) then
+      fetch_data(state)
         -- manager.refresh(M.name)
     end
   end
   -- :UEP tree などで明示的に表示要求が来た時
-  unl_events.subscribe(unl_event_types.ON_REQUEST_UPROJECT_TREE_VIEW, function(payload)
-    state_manager.set_last_request(payload)
-    fetch_data()
-  end)
+  unl_events.subscribe(unl_event_types.ON_REQUEST_UPROJECT_TREE_VIEW, on_data_changed)
   unl_events.subscribe(unl_event_types.ON_AFTER_FILE_CACHE_SAVE, on_data_changed)
   unl_events.subscribe(unl_event_types.ON_AFTER_PROJECT_CACHE_SAVE, on_data_changed)
   unl_events.subscribe(unl_event_types.ON_AFTER_CHANGE_DIRECTORY, on_data_changed)
