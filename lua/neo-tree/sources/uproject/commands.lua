@@ -35,12 +35,10 @@ local function toggle_directory(state, node)
         local child_node = vim.deepcopy(child_data)
         
         if child_node.type == "directory" then
-          -- この子ノードがさらに子階層を持っているかチェック
           if child_node.extra and child_node.extra.hierarchy and #child_node.extra.hierarchy > 0 then
             child_node.children = {}
             child_node.loaded = false -- neo-treeに子がいることを示す
           else
-            -- 子階層を持たない空のディレクトリ
             child_node.loaded = true
           end
         else
@@ -51,29 +49,19 @@ local function toggle_directory(state, node)
       
       renderer.show_nodes(children_for_display, state, node:get_id())
     end
-    
-    -- 自身のノードを「読み込み済み」に更新
     node.extra.is_loaded = true
-    
-    -- neo-tree の内部状態も更新しておく
     node.loaded = true 
+  else
 
-    if not node:is_expanded() then node:expand() end
-    state.explicitly_opened_nodes[node:get_id()] = true
-    renderer.redraw(state)
-
-  -- 2. 既に読み込み済みで、子を持つノードの場合
-  elseif node:has_children() then
-    if node:is_expanded() then
-      node:collapse()
-      state.explicitly_opened_nodes[node:get_id()] = false
-    else
-      node:expand()
-      state.explicitly_opened_nodes[node:get_id()] = true
+    if node:has_children() then
+      if node:is_expanded() then
+        node:collapse()
+      else
+        node:expand()
+      end
+      renderer.redraw(state)
     end
-    renderer.redraw(state)
   end
-  -- ▲▲▲ 変更ここまで ▲▲▲
 end
 
 

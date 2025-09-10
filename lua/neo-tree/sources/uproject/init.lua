@@ -89,11 +89,6 @@ M.setup = function(config, global_config)
   local unl_types_ok, unl_event_types = pcall(require, "UNL.event.types")
   if not unl_types_ok then return end
 
-  -- :UEP tree などで明示的に表示要求が来た時
-  unl_events.subscribe(unl_event_types.ON_REQUEST_UPROJECT_TREE_VIEW, function(payload)
-    state_manager.set_last_request(payload)
-    fetch_data()
-  end)
 
   -- UEPが後からロードされた時
   unl_events.subscribe(unl_event_types.ON_PLUGIN_AFTER_SETUP, function(payload)
@@ -113,6 +108,11 @@ M.setup = function(config, global_config)
         -- manager.refresh(M.name)
     end
   end
+  -- :UEP tree などで明示的に表示要求が来た時
+  unl_events.subscribe(unl_event_types.ON_REQUEST_UPROJECT_TREE_VIEW, function(payload)
+    state_manager.set_last_request(payload)
+    fetch_data()
+  end)
   unl_events.subscribe(unl_event_types.ON_AFTER_FILE_CACHE_SAVE, on_data_changed)
   unl_events.subscribe(unl_event_types.ON_AFTER_PROJECT_CACHE_SAVE, on_data_changed)
   unl_events.subscribe(unl_event_types.ON_AFTER_CHANGE_DIRECTORY, on_data_changed)
