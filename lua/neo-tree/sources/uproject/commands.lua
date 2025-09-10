@@ -1,3 +1,4 @@
+-- lua/neo-tree/sources/uproject/commands.lua (遅延読み込み対応版)
 
 local cc = require("neo-tree.sources.common.commands")
 local renderer = require("neo-tree.ui.renderer")
@@ -6,18 +7,13 @@ local manager = require("neo-tree.sources.manager")
 ---@class neotree.sources.Uproject.Commands : neotree.sources.Common.Commands
 local M = {}
 
--- このソースの init.lua を保持するための変数
--- neo-tree が setup 時に M.init を呼び出してくれる
-local uproject_source = nil
+-- uproject_source の初期化は不要になったため、init関数を削除または空にしてもOKです
 function M.init(source_module)
-  uproject_source = source_module
+  -- このモジュールはもはやinit.luaの関数を直接呼び出す必要がありません
 end
 
-
-
-
 ---
--- ユーザーのキー操作に対応する、展開/折りたたみのメインロジック
+-- ユーザーのキー操作に対応する、展開/折りたたみのメインロジック (遅延読み込み対応)
 -- @param state neotree.State
 -- @param node NuiTree.Node 対象ノード
 local function toggle_directory(state, node)
@@ -25,36 +21,47 @@ local function toggle_directory(state, node)
 
   state.explicitly_opened_nodes = state.explicitly_opened_nodes or {}
   
-  -- 1. まだ読み込んでいないノードの場合 (遅延読み込み)
-  if node.loaded == false then
-    if not uproject_source then
-      require("neo-tree.log").warn("uproject source module is not initialized in commands.lua")
-      return
-    end
-    -- init.lua から完全なノードデータを取得
-    local full_node_data = uproject_source.get_full_node_data(node.id)
-    if full_node_data and full_node_data.children then
-      -- 描画用に子ノードのリストを準備
+  -- ▼▼▼ 変更点: 判定条件を node.extra.is_loaded に変更 ▼▼▼
+
+  -- 1. まだ読み込んでいないノードの場合 (遅延読み込みの実行)
+  -- node.loaded の代わりに、自分たちで定義した extra.is_loaded フラグを見る
+  if node.extra and not node.extra.is_loaded then
+    
+    local children_data = node.extra.hierarchy
+    if children_data and #children_data > 0 then
+      
       local children_for_display = {}
-      for _, child_data in ipairs(full_node_data.children) do
-        local child_copy = vim.deepcopy(child_data)
-        if child_copy.children and #child_copy.children > 0 then
-          child_copy.children = {}
-          child_copy.loaded = false
+      for _, child_data in ipairs(children_data) do
+        local child_node = vim.deepcopy(child_data)
+        
+        if child_node.type == "directory" then
+          -- この子ノードがさらに子階層を持っているかチェック
+          if child_node.extra and child_node.extra.hierarchy and #child_node.extra.hierarchy > 0 then
+            child_node.children = {}
+            child_node.loaded = false -- neo-treeに子がいることを示す
+          else
+            -- 子階層を持たない空のディレクトリ
+            child_node.loaded = true
+          end
         else
-          child_copy.loaded = true
+          child_node.loaded = true
         end
-        table.insert(children_for_display, child_copy)
+        table.insert(children_for_display, child_node)
       end
       
       renderer.show_nodes(children_for_display, state, node:get_id())
-      node.loaded = true
-      if not node:is_expanded() then node:expand() end
-      
-      -- 展開したことを記録
-      state.explicitly_opened_nodes[node:get_id()] = true
-      renderer.redraw(state) -- 子を追加した後に再描画
     end
+    
+    -- 自身のノードを「読み込み済み」に更新
+    node.extra.is_loaded = true
+    
+    -- neo-tree の内部状態も更新しておく
+    node.loaded = true 
+
+    if not node:is_expanded() then node:expand() end
+    state.explicitly_opened_nodes[node:get_id()] = true
+    renderer.redraw(state)
+
   -- 2. 既に読み込み済みで、子を持つノードの場合
   elseif node:has_children() then
     if node:is_expanded() then
@@ -64,11 +71,10 @@ local function toggle_directory(state, node)
       node:expand()
       state.explicitly_opened_nodes[node:get_id()] = true
     end
-    -- UIの状態変更を反映するために再描画
     renderer.redraw(state)
   end
+  -- ▲▲▲ 変更ここまで ▲▲▲
 end
-
 
 
 M.refresh = function(state)
@@ -108,8 +114,7 @@ M.add = function(state)
   end
 end
 
--- 'd' キーに割り当てられたカスタム削除コマンド
--- 選択されたノードのタイプに応じて振る舞いを変更する
+-- (以降の delete, rename, move などのコマンドは変更の必要なし)
 M.delete = function(state)
   local log = require("neo-tree.log")
   local node = state.tree:get_node()
@@ -119,27 +124,21 @@ M.delete = function(state)
     return
   end
   
-  -- 1. 選択されたノードが「ファイル」の場合
   if node.type == "file" then
     log.debug("Node is a file, dispatching to UCM.api.delete_class")
     local ucm_ok, ucm_api = pcall(require, "UCM.api")
     if ucm_ok then
-      -- UCM APIは .h と .cpp をペアで賢く削除してくれる
       ucm_api.delete_class({ file_path = node.id })
     else
       log.warn("UCM.api module could not be loaded.")
     end
 
-  -- 2. 選択されたノードが「ディレクトリ」の場合
   elseif node.type == "directory" then
     log.debug("Node is a directory, dispatching to common neo-tree delete command")
-    -- neo-treeの標準の削除コマンドを呼び出す
     cc.delete(state)
 
-  -- 3. その他の場合 (メッセージノードなど)
   else
     log.debug("Delete command ignored for node type: " .. node.type)
-    -- 何もしない
   end
 end
 
@@ -179,17 +178,15 @@ M.move = function(state)
     local ucm_ok, ucm_api = pcall(require, "UCM.api")
     if not ucm_ok then return log.warn("UCM.api module could not be loaded.") end
 
-    -- UCMの対話的UIを再利用する
     ucm_api.move_class({ file_path = node.id })
 
   elseif node.type == "directory" then
     log.debug("Node is a directory, using standard neo-tree move (cut/paste)")
-    -- 標準の'cut'コマンドを呼び出す
     cc.cut(state)
     vim.notify("Directory cut. Navigate to destination and press 'p' to paste.", vim.log.levels.INFO)
   end
 end
--- neo-tree の標準コマンドをカスタムロジックでオーバーライド
+
 M.toggle_node = function(state)
   toggle_directory(state, state.tree:get_node())
 end
@@ -198,8 +195,6 @@ M.open = function(state)
   cc.open(state, function(node) toggle_directory(state, node) end)
 end
 
--- 共通コマンドを継承
 cc._add_common_commands(M)
 
 return M
-
