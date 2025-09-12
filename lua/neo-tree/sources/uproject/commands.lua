@@ -94,12 +94,17 @@ M.add = function(state)
     return
   end
   
-  local ucm_ok, ucm_api  = pcall(require, "UCM.api")
-  if ucm_ok then
-    ucm_api.new_class({ target_dir = target_dir })
-  else
-    log.warn("UCM.api module could not be loaded.")
+  local unl_api_ok, unl_api = pcall(require, "UNL.api")
+  if not unl_api_ok then
+    return log.warn("UNL.api module could not be loaded.")
   end
+
+  -- プロバイダーにリクエストを投げる (Fire and Forget)
+  -- on_completeコールバックは不要。UIの更新はイベント駆動で行われる。
+  unl_api.provider.request("ucm.class.new", {
+    target_dir = target_dir,
+    logger_name = "neo-tree-uproject", -- ログを一元管理するためにロガー名を渡す
+  })
 end
 
 -- (以降の delete, rename, move などのコマンドは変更の必要なし)
@@ -113,13 +118,15 @@ M.delete = function(state)
   end
   
   if node.type == "file" then
-    log.debug("Node is a file, dispatching to UCM.api.delete_class")
-    local ucm_ok, ucm_api = pcall(require, "UCM.api")
-    if ucm_ok then
-      ucm_api.delete_class({ file_path = node.id })
-    else
-      log.warn("UCM.api module could not be loaded.")
+    local unl_api_ok, unl_api = pcall(require, "UNL.api")
+    if not unl_api_ok then
+      return log.warn("UNL.api module could not be loaded.")
     end
+
+    unl_api.provider.request("ucm.class.delete", {
+      file_path = node.id,
+      logger_name = "neo-tree-uproject", -- ログを一元管理するためにロガー名を渡す
+    })
 
   elseif node.type == "directory" then
     log.debug("Node is a directory, dispatching to common neo-tree delete command")
@@ -136,22 +143,21 @@ M.rename = function(state)
   if not node then return end
 
   if node.type == "file" then
-    log.debug("Node is a file, dispatching to UCM.api.rename_class")
-    local ucm_ok, ucm_api = pcall(require, "UCM.api")
-    if not ucm_ok then
-      return log.warn("UCM.api module could not be loaded.")
+    log.debug("Node is a file, dispatching to UCM provider for rename")
+    
+    local unl_api_ok, unl_api = pcall(require, "UNL.api")
+    if not unl_api_ok then
+      return log.warn("UNL.api module could not be loaded.")
     end
     
-    local old_name = vim.fn.fnamemodify(node.id, ":t:r")
-    vim.ui.input({ prompt = "Enter New Class Name:", default = old_name }, function(new_name)
-      if not new_name or new_name == "" or new_name == old_name then
-        return log.info("Rename canceled.")
-      end
-      ucm_api.rename_class({ file_path = node.id, new_class_name = new_name })
-    end)
+    unl_api.provider.request("ucm.class.rename", {
+      file_path = node.id,
+      logger_name = "neo-tree-uproject",
+    })
 
   elseif node.type == "directory" then
     log.debug("Node is a directory, dispatching to common neo-tree rename command")
+    -- ディレクトリのリネームはneo-treeの標準機能を使う
     cc.rename(state)
   end
 end
@@ -162,14 +168,24 @@ M.move = function(state)
   if not node then return end
 
   if node.type == "file" then
-    log.debug("Node is a file, dispatching to UCM.api.move_class")
-    local ucm_ok, ucm_api = pcall(require, "UCM.api")
-    if not ucm_ok then return log.warn("UCM.api module could not be loaded.") end
+    log.debug("Node is a file, dispatching to UCM provider for move")
+    
+    local unl_api_ok, unl_api = pcall(require, "UNL.api")
+    if not unl_api_ok then
+      return log.warn("UNL.api module could not be loaded.")
+    end
 
-    ucm_api.move_class({ file_path = node.id })
+    -- UCMのプロバイダーを呼び出す。
+    -- UCM側が移動先の選択UIを表示し、ファイルの移動とイベント発行を行う。
+    -- on_completeは不要。
+    unl_api.provider.request("ucm.class.move", {
+      file_path = node.id,
+      logger_name = "neo-tree-uproject",
+    })
 
   elseif node.type == "directory" then
     log.debug("Node is a directory, using standard neo-tree move (cut/paste)")
+    -- ディレクトリの移動はneo-treeの標準機能を使う
     cc.cut(state)
     vim.notify("Directory cut. Navigate to destination and press 'p' to paste.", vim.log.levels.INFO)
   end
