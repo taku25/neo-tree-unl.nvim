@@ -13,7 +13,11 @@
 
 ファイルシステムの物理的な階層ではなく、「Game」「Plugins」「Engine」といった論理的なカテゴリや、モジュール単位でプロジェクトを把握することを可能にします。
 
-これは **Unreal Neovim Plugin Pluign Sweet** のUIコンポーネントであり、ライブラリとして [UNL.nvim](https://github.com/taku25/UNL.nvim) に依存し、データソースとして [UEP.nvim](https://github.com/taku25/UEP.nvim) が作り出すキャッシュデータを必要とします
+共有ライブラリとして [UNL.nvim](https://github.com/taku25/UNL.nvim) に依存しています。
+
+その他、Unreal Engine開発を強化するためのプラグイン群 ([`UEP.nvim`](https://github.com/taku25/UEP.nvim), [`UCM.nvim`](https://github.com/taku25/UCM.nvim)) 
+ ([`ULG.nvim`](https://github.com/taku25/ULG.nvim), [`UBT.nvim`](https://github.com/taku25/UBT.nvim)) があります。
+
 
 [English](README.md) | [日本語 (Japanese)](README_ja.md)
 
