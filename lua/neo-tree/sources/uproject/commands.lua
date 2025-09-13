@@ -3,7 +3,8 @@
 local cc = require("neo-tree.sources.common.commands")
 local renderer = require("neo-tree.ui.renderer")
 local manager = require("neo-tree.sources.manager")
-
+local fs_commands = require("neo-tree.sources.filesystem.commands")
+local utils = require("neo-tree.utils")
 ---@class neotree.sources.Uproject.Commands : neotree.sources.Common.Commands
 local M = {}
 
@@ -11,6 +12,11 @@ local M = {}
 function M.init(source_module)
   -- このモジュールはもはやinit.luaの関数を直接呼び出す必要がありません
 end
+
+local refresh = function(state)
+  manager.refresh(state.name)
+end
+
 
 ---
 -- ユーザーのキー操作に対応する、展開/折りたたみのメインロジック (遅延読み込み対応)
@@ -65,9 +71,6 @@ local function toggle_directory(state, node)
 end
 
 
-M.refresh = function(state)
-  manager.refresh(state.name)
-end
 ---
 -- 'a' キーに割り当てられたカスタムコマンド
 M.add = function(state)
@@ -107,6 +110,8 @@ M.add = function(state)
   })
 end
 
+
+M.refresh = refresh
 -- (以降の delete, rename, move などのコマンドは変更の必要なし)
 M.delete = function(state)
   local log = require("neo-tree.log")
@@ -130,11 +135,14 @@ M.delete = function(state)
 
   elseif node.type == "directory" then
     log.debug("Node is a directory, dispatching to common neo-tree delete command")
-    cc.delete(state)
-
+    cc.delete(state, utils.wrap(refresh, state))
   else
     log.debug("Delete command ignored for node type: " .. node.type)
   end
+end
+
+M.delete_visual = function(state, selected_nodes)
+  cc.delete_visual(state, selected_nodes, utils.wrap(refresh, state))
 end
 
 M.rename = function(state)
