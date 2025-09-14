@@ -1,10 +1,13 @@
 -- lua/neo-tree/sources/uproject/commands.lua (遅延読み込み対応版)
-
+local fs_actions = require("neo-tree.sources.filesystem.lib.fs_actions")
 local cc = require("neo-tree.sources.common.commands")
 local renderer = require("neo-tree.ui.renderer")
 local manager = require("neo-tree.sources.manager")
-local fs_commands = require("neo-tree.sources.filesystem.commands")
+local unl_finder = require("UNL.finder")
 local utils = require("neo-tree.utils")
+local unl_events = require("UNL.event.events")
+local unl_event_types =require("UNL.event.types")
+
 ---@class neotree.sources.Uproject.Commands : neotree.sources.Common.Commands
 local M = {}
 
@@ -17,6 +20,18 @@ local refresh = function(state)
   manager.refresh(state.name)
 end
 
+
+local function modify_directory(type_name, dir_name)
+  local module = unl_finder.module.find_module(dir_name)
+  if module then
+    unl_events.publish(unl_event_types.ON_AFTER_MODIFY_DIRECTORY,
+      {
+        status = "success",
+        type=type_name,
+        module=module
+      })
+  end
+end
 
 ---
 -- ユーザーのキー操作に対応する、展開/折りたたみのメインロジック (遅延読み込み対応)
@@ -70,7 +85,16 @@ local function toggle_directory(state, node)
   end
 end
 
+M.add_directory = function(state, callback)
 
+  cc.add_directory(state, function(destination)
+    if callback then
+      callback(destination)
+    end
+      
+    modify_directory("add", destination)
+  end)
+end
 ---
 -- 'a' キーに割り当てられたカスタムコマンド
 M.add = function(state)
@@ -135,17 +159,34 @@ M.delete = function(state)
 
   elseif node.type == "directory" then
     log.debug("Node is a directory, dispatching to common neo-tree delete command")
-    cc.delete(state, utils.wrap(refresh, state))
+  
+    local delete_target = node.id
+    cc.delete(state, function(destination)
+
+      if callback then
+        callback(destination)
+      end
+    
+      modify_directory("delete", delete_target)
+
+    end)
   else
     log.debug("Delete command ignored for node type: " .. node.type)
   end
 end
 
-M.delete_visual = function(state, selected_nodes)
-  cc.delete_visual(state, selected_nodes, utils.wrap(refresh, state))
+M.delete_visual = function(state, selected_nodes, callback)
+  local delete_target = selected_nodes.id
+  cc.delete_visual(state, selected_nodes, function(destination)
+
+    if callback then
+      callback(destination)
+    end
+    modify_directory("delete", delete_target)
+  end)
 end
 
-M.rename = function(state)
+M.rename = function(state, callback)
   local log = require("neo-tree.log")
   local node = state.tree:get_node()
   if not node then return end
@@ -166,11 +207,19 @@ M.rename = function(state)
   elseif node.type == "directory" then
     log.debug("Node is a directory, dispatching to common neo-tree rename command")
     -- ディレクトリのリネームはneo-treeの標準機能を使う
-    cc.rename(state)
+   
+    local neo_tree_path = node.id
+    neo_tree_path = neo_tree_path:gsub("/", "\\")
+    fs_actions.rename_node(neo_tree_path, function(path, destination)
+        if callback then
+          callback(path, destination)
+        end
+        modify_directory("rename", path)
+    end)
   end
 end
 
-M.move = function(state)
+M.move = function(state, callback)
   local log = require("neo-tree.log")
   local node = state.tree:get_node()
   if not node then return end
@@ -194,8 +243,12 @@ M.move = function(state)
   elseif node.type == "directory" then
     log.debug("Node is a directory, using standard neo-tree move (cut/paste)")
     -- ディレクトリの移動はneo-treeの標準機能を使う
-    cc.cut(state)
-    vim.notify("Directory cut. Navigate to destination and press 'p' to paste.", vim.log.levels.INFO)
+    cc.move(state, function(source, dest)
+        if callback then
+          callback(source, dest)
+        end
+        modify_directory("move", dest)
+    end)
   end
 end
 
