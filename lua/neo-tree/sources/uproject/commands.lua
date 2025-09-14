@@ -243,12 +243,17 @@ M.move = function(state, callback)
   elseif node.type == "directory" then
     log.debug("Node is a directory, using standard neo-tree move (cut/paste)")
     -- ディレクトリの移動はneo-treeの標準機能を使う
-    cc.move(state, function(source, dest)
-        if callback then
-          callback(source, dest)
-        end
-        modify_directory("move", dest)
-    end)
+    local neo_tree_path = node.id
+    neo_tree_path = neo_tree_path:gsub("/", "\\")
+
+    local function move_callback(source, dest)
+      if callback then
+        callback(source, dest)
+      end
+      modify_directory("move", dest)
+    end
+
+    fs_actions.move_node(neo_tree_path, nil, move_callback, neo_tree_path)
   end
 end
 
