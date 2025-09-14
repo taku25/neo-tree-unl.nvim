@@ -189,7 +189,6 @@ M.setup = function(config, global_config)
       -- ★★★ neo-treeに「何か変わったぞ」と知らせるためにrefreshを呼び出す。
       -- これにより、我々のnavigate関数が安全に呼び出されることが保証される。
 
-      print("data update")
 
       -- state.dirty = false 
       vim.cmd("Neotree source=uproject")
