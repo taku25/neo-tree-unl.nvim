@@ -107,7 +107,7 @@ return {
 
 ```viml
 " プロジェクト全体の論理ツリーを表示します。
-:UEP tree
+:UEP tree [--all-deps](オプション:浅い参照 or 深い参照)
 
 " 特定のモジュールの論理ツリーを表示します。
 :UEP module_tree [ModuleName](オプション　引数なしの場合はPickerが起動します)

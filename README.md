@@ -104,7 +104,7 @@ For details on `UEP.nvim` commands, please refer to the [UEP.nvim documentation]
 
 ```viml
 " Display the logical tree for the entire project.
-:UEP tree
+:UEP tree [--all-deps](optional:shallow_deps or deep_deps)
 
 " Display the logical tree for a specific module.
 :UEP module_tree [ModuleName](optional; if no argument is given, a picker will be launched)
