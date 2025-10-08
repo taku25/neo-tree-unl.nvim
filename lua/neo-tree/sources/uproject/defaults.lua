@@ -18,6 +18,10 @@ return {
     perf = { enabled = false, patterns = { "^refresh" }, level = "trace" },
     debug = { enable = true, },
   },
+  folder_open = "",
+  folder_closed = "",
+  uproject_icon = "",
+  uplugin_icon = "",
 
   cache = { dirname = "neo-tree-uproject" },
   
