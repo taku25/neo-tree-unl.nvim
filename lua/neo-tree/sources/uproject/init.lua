@@ -179,17 +179,12 @@ M.setup = function(config, global_config)
   local unl_types_ok, unl_event_types = pcall(require, "UNL.event.types")
   if not unl_types_ok then return end
 
-  ---
   -- データソースが外部で変更された（可能性のある）場合に呼ばれる、唯一のトリガー。
   -- この関数は、状態をリセットし、公式のrefresh APIを呼び出すことだけに責任を持つ。
   local function on_data_changed(payload)
     state_manager.set_last_request(payload)
     local state = manager.get_state(M.name)
     if state and state.winid and vim.api.nvim_win_is_valid(state.winid) then
-      -- ★★★ neo-treeに「何か変わったぞ」と知らせるためにrefreshを呼び出す。
-      -- これにより、我々のnavigate関数が安全に呼び出されることが保証される。
-
-
       -- state.dirty = false 
       vim.cmd("Neotree source=uproject")
       -- manager.refresh(M.name)

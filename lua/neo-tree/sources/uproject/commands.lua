@@ -11,9 +11,7 @@ local unl_event_types =require("UNL.event.types")
 ---@class neotree.sources.Uproject.Commands : neotree.sources.Common.Commands
 local M = {}
 
--- uproject_source の初期化は不要になったため、init関数を削除または空にしてもOKです
 function M.init(source_module)
-  -- このモジュールはもはやinit.luaの関数を直接呼び出す必要がありません
 end
 
 local refresh = function(state)
