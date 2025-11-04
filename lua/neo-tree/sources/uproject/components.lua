@@ -1,6 +1,7 @@
 local common_components = require("neo-tree.sources.common.components")
 local highlights = require("neo-tree.ui.highlights")
 
+
 local M = {}
 
 M.icon = function(config, node, state)
