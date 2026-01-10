@@ -1,3 +1,10 @@
+[!WARNING]
+**このプロジェクトはメンテナンスを終了しました。**
+
+機能の改善や開発は、後継プロジェクトである **[UNX.nvim](https://github.com/taku25/unx.nvim)** に移行しました。
+より快適な Unreal Engine 開発環境のために、UNX.nvim への移行を強く推奨します。
+このリポジトリは参照用としてアーカイブされています。
+
 
 # neo-tree-unl.nvim
 

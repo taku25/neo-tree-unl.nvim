@@ -1,3 +1,11 @@
+[!WARNING]
+**This project is no longer maintained.**
+
+All features and further developments have been migrated/superseded by **[UNX.nvim](https://github.com/taku25/unx.nvim)**.
+We highly recommend switching to UNX.nvim for a better Unreal Engine development experience in Neovim.
+This repository has been archived for reference purposes.
+
+
 # neo-tree-unl.nvim
 
 # Unreal Engine Logical Tree 💓 Neovim
